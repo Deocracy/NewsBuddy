@@ -11,62 +11,15 @@ testing: can I grab the full article from each headline in the NBAI.db table: __
 #-------------------------------------------------------------------------------------------
 import os, sys
 from urllib.request import Request, urlopen
-import dbMgr as dbm
-import time
-import urllib.request
 from urllib.error import URLError
+import dbMgr as dbm
+import misc
+import time
+import sqlite3
+import html
 
 errLogFile = "Errors.txt"
 beep       = chr(7)
-#-------------------------------------------------------------------------------------------
-
-
-#-------------------------------------------------------------------------------------------
-def alrt():
-    print( beep )
-    print( beep )
-#-------------------------------------------------------------------------------------------
-
-
-#-------------------------------------------------------------------------------------------
-def log( txt, outPutFileName=None ):
-
-    # 02/03/20
-    if ( outPutFileName == None ):
-        outPutFileName = "logFile.txt"
-    
-    with open( outPutFileName, "a" ) as lF:
-        
-        if ( "list" in str( type( txt ) ) ):
-           rng  = range(0,len( txt ))
-           for i in rng:
-               toWrite = str( txt[i] )
-               #lF.write( toWrite.encode('ascii', 'ignore').decode('utf-8') )
-               lF.write( toWrite )
-               lF.write( "\n" )
-
-        elif ( "dict" in str( type( txt ) ) ):
-           for key in txt:
-               lF.write( key + ": " + str( txt[key] ) )
-               lF.write( "\n" )
-
-        elif ( "str" in str( type( txt ) ) ):
-            #txt = txt.decode('utf-8').encode('ascii', 'ignore').decode('utf-8')
-            lF.write( txt )
-            lF.write( "\n" )
-
-        elif ( "bool" in str( type( txt ) ) ):
-            if ( txt ):
-                lF.write( "True" )
-            else:
-                lF.write( "False" )
-
-        elif ( "int" in str( type( txt ) ) ) or ( "float" in str( type( txt ) ) ):
-            lF.write( str( txt ) )
-            lF.write( "\n" )
-
-    lF.close
-    return                        # log()
 #-------------------------------------------------------------------------------------------
 
 
@@ -85,7 +38,7 @@ def gitArts( conn, curs ):
     sqlStmt = "SELECT artLink FROM news"
     try:
         theList = curs.execute( sqlStmt ).fetchall()
-    except Error as err:
+    except sqlite3.Error as err:
         misc.alrt()
         misc.log( "Error getting all data from NBAI.db: " + str(err), errLogFile )
 
@@ -98,37 +51,42 @@ def gitArts( conn, curs ):
 
 
 #---------------------------------------------------------------------------
-def updateDB2( data, connection, cursor, theTable, artLink ):
+def updateDB2( data, connection, cursor, theTbl, artLink ):
 
     """
     inserts data to a specific field with a specific url to a specific table in the database
     11/30/22: currently only used for inserting articles into the news table
     """
 
-    sqlStmt = "UPDATE " + theTable + " SET articles = BLOB( '" + data + "' ) WHERE url = " + '"' + artLink + '"'
-    #sqlStmt = "UPDATE " + theTable + " SET articles = '" + data + "' WHERE url = " + '"' + artLink + '"'
+    #sqlStmt = "UPDATE " + theTbl + " SET articles = BLOB( '" + data + "' ) WHERE url = " + '"' + artLink + '"'
+    #sqlStmt = "UPDATE " + theTbl + " SET articles = '" + data + "' WHERE url = " + '"' + artLink + '"'
+    #sqlStmt = """ UPDATE theTbl SET articles = VALUE (?) WHERE url = artLink """
+
+    # ???
+    # type(data) == <class 'bytes'>
+    # ERROR: TypeError: a bytes-like object is required, not 'str'
+    data = html.escape( data )
+    sqlStmt = "UPDATE " + theTbl + """ SET articles = VALUE (?) WHERE url = """ + artLink
 
     try:
-        result = cursor.execute( sqlStmt )
+        result = cursor.execute( sqlStmt, data )
 
-    except OperationalError as err:               # sqlite.
-        alrt()
-        print( "sqlStmt == ", sqlStmt )
-        print( "artLink == ", artLink )
-        print( "err == ", err )
-        log( "OperationalError - Failed to save the data for: " + artLink + ": " + str(err), errLogFile )
+    except sqlite3.OperationalError as err:
+        misc.alrt()
+        print( "OperationalError - Failed to save the data for artLink: " + artLink + "\n" + " - error ==  " + str(err) + "\n" + " With sqlStmt == " + sqlStmt )
+        misc.log( "OperationalError - Failed to save the data for artLink: " + artLink + "\n" + " - error ==  " + str(err) + "\n" + " With sqlStmt == " + sqlStmt, errLogFile ) 
 
-    except SQLITE_ERROR as err:
-        alrt()
-        log( "SQLITE_ERROR - Failed to save the data for: " + baseUrl + ": " + str(err), errLogFile )
-
+    except sqlite3.SQLITE_ERROR as err:
+        misc.alrt()
+        print( "SQLITE_ERROR - Failed to save the data for artLink: " + artLink + "\n" + " - error ==  " + str(err) + "\n" + " With sqlStmt == " + sqlStmt )
+        misc.log( "SQLITE_ERROR - Failed to save the data for artLink: " + artLink + "\n" + " - error ==  " + str(err) + "\n" + " With sqlStmt == " + sqlStmt, errLogFile ) 
 
     try:
         connection.commit()
 
     except Error as err:
-        alrt()
-        log( "Failed to commit() this connection in updateDB(): " + str(err), errLogFile )
+        misc.alrt()
+        misc.log( "Failed to commit() this connection in updateDB(): " + str(err), errLogFile )
 #---------------------------------------------------------------------------
 
 
@@ -140,19 +98,19 @@ class grabMain():
     urls     = []
     titles   = []
     cntr     = 0
-    theTable = "news"
+    theTbl = "news"
 
 
     # create a connection object with the database
     conn, curs = dbm.connToDB( theDB )
     if ( conn == None ):
-        alrt()
+        misc.alrt()
         quit
 
     # load all news article link urls to arts[]
     arts = gitArts( conn, curs )           # urls, 
     if ( arts == None ):
-        alrt()
+        misc.alrt()
         quit
 
     for ele in arts:
@@ -160,19 +118,19 @@ class grabMain():
         try:
             requestObj  = Request( ele, headers={'User-agent': 'Mozilla/5.0'} )
             responseObj = urlopen( requestObj )
-            theHtml     = str( responseObj.read(), "utf-8" )
-            #theHtml     = responseObj.read()
+            #theHtml     = str( responseObj.read(), "utf-8" )
             #theHtml     = theHtml.decode( "utf-8" )
+            theHtml     = responseObj.read()
         except URLError as err:
             print( "Unable to download page: " + str(err.reason) )
 
-        updateDB2( theHtml, conn, curs, theTable, ele )
+        updateDB2( theHtml, conn, curs, theTbl, ele )
 
     try:
         conn.commit()
     except Error as err:
-        alrt()
-        log( "Failed to commit() this connection in startDB(): " + str(err), errLogFile )
+        misc.alrt()
+        misc.log( "Failed to commit() this connection in startDB(): " + str(err), errLogFile )
 #-------------------------------------------------------------------------------------------
 
 
