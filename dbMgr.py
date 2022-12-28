@@ -142,25 +142,33 @@ def addToDB( data, connection, cursor ):
 
     """
     adds to the end of the database
+    returns result(T/F) showing if errored out 
+    default is True == OK
     """
 
-    #value = ( data["key"], data["url"], data["title"], data["headlines"], data["artLink"], data["articles"], data["topic"] )
+    result = True
     value = ( data["key"], data["url"], data["headlines"], data["artLink"], data["articles"], data["topic"] )
 
     try:
         result = cursor.execute( "INSERT INTO news VALUES (?,?,?,?,?,?)", value )
-    except Error as err:
+    except sqlite3.OperationalError as err:
         misc.alrt()
         misc.log( "Failed to save the data for: " + data["title"] + ": " + str(err), "InsertErrors.txt" )
+        result = False
     except KeyError as err:
         misc.alrt()
         misc.log( "Failed to save the data for - KeyError: " + data["title"] + ": " + str(err), "InsertErrors.txt" )
-    
-    try:
-        connection.commit()
-    except Error as err:
-        misc.alrt()
-        misc.log( "Failed to commit() this connection in addToDB(): " + str(err), errLogFile )
+        result = False
+
+    if ( result != None ):                   ## == True ):
+        try:
+            connection.commit()
+        except Error as err:
+            misc.alrt()
+            misc.log( "Failed to commit() this connection in addToDB(): " + str(err), errLogFile )
+            result = False
+
+    return result
 #---------------------------------------------------------------------------
 
 

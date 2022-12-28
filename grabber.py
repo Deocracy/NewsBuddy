@@ -10,61 +10,20 @@ see also: NewsCatcherLibNotes.txt
 # coding: utf-8
 
 #-------------------------------------------------------------------------------------------
-import os, sys, re, requests
+import requests
 from newscatcher import Newscatcher as NC
-from newscatcher import describe_url
-from newscatcher import urls
-#from urllib.parse import urlparse
-import urllib3
-import json                           # for jsonLog()
 import dbMgr as dbm                   # for database storage instead of log()
 import misc
 import datetime
 import time
-#from googletrans import Translator
-from bs4 import BeautifulSoup as soup
-#import multiprocessing
-#from multiprocessing import Pool, TimeoutError
+import os.path
+import sqlite3
 
 errLogFile = "Errors.txt"
 theDB      = "NBAI.db"
 beep       = chr(7)
+lines2     = "\n\n"
 #__spec__   = None
-#-------------------------------------------------------------------------------------------
-
-
-#-------------------------------------------------------------------------------------------
-def savePage(url, pagepath='page'):
-    def savenRename(soup, pagefolder, session, url, tag, inner):
-        if not os.path.exists(pagefolder): # create only once
-            os.mkdir(pagefolder)
-        for res in soup.findAll(tag):   # images, css, etc..
-            if res.has_attr(inner): # check inner tag (file object) MUST exists  
-                try:
-                    filename, ext = os.path.splitext(os.path.basename(res[inner])) # get name and extension
-                    filename = re.sub('\W+', '', filename) + ext # clean special chars from name
-                    # urljoin() not defined
-                    fileurl = urljoin(url, res.get(inner))
-                    filepath = os.path.join(pagefolder, filename)
-                    # rename html ref so can move html and folder of files anywhere
-                    res[inner] = os.path.join(os.path.basename(pagefolder), filename)
-                    if not os.path.isfile(filepath): # was not downloaded
-                        with open(filepath, 'wb') as file:
-                            filebin = session.get(fileurl)
-                            file.write(filebin.content)
-                except Exception as exc:
-                    print(exc, file=sys.stderr)
-    session = requests.Session()
-    #... whatever other requests config you need here
-    response = session.get(url)
-    soup = soup( response.text, "html.parser" )
-    path, _ = os.path.splitext(pagepath)
-    pagefolder = path+'_files' # page contents folder
-    tags_inner = {'img': 'src', 'link': 'href', 'script': 'src'} # tag&inner tags to grab
-    for tag, inner in tags_inner.items(): # saves resource files and rename refs
-        savenRename(soup, pagefolder, session, url, tag, inner)
-    with open(path+'.html', 'wb') as file: # saves modified html doc
-        file.write(soup.prettify('utf-8'))
 #-------------------------------------------------------------------------------------------
 
 
@@ -115,26 +74,36 @@ def gitArt( theLink ):
 def gitArtLink( str4Link ):
 
     strHtml = ""
-    s4Lnk   = str( str4Link )
-    #s4LnkEN = misc.doTrans( s4Lnk, "en", "str" )
+    #s4LnkEN = misc.doTrans( str4Link, "en", "str" )
+
+
+#-------------------------------------------------------------------------------------------
+
+
+#-------------------------------------------------------------------------------------------
+def gitArtLink1( str4Link ):
+
+    strHtml = ""
+    #s4LnkEN = misc.doTrans( str4Link, "en", "str" )
     toFind  = "'href': '"
     l2f     = len( toFind )
     #fnd     = s4LnkEN.find( toFind )
-    fnd     = s4Lnk.find( toFind )
+    fnd     = str4Link.find( toFind )
 
     if ( fnd < 0 ):
 
         toFind  = 'article < a rel="nofollow" href="'
         l2f     = len( toFind )
-        fnd     = s4Lnk.find( toFind )
+        fnd     = str4Link.find( toFind )
+
         if ( fnd < 0 ):
             toFind  = 'article <a rel="nofollow" href="'
             l2f     = len( toFind )
-            fnd     = s4Lnk.find( toFind )   # s4LnkEN
-            prtStr  = s4Lnk[fnd+l2f:]        # s4LnkEN
+            fnd     = str4Link.find( toFind )
+            prtStr  = str4Link[fnd+l2f:]
 
     else:
-        prtStr  = s4Lnk[fnd+l2f:-2]          # s4LnkEN
+        prtStr  = str4Link[fnd+l2f:-2]
 
     q2f     = prtStr.find( '"' )
     if ( q2f < 0 ):                  # " not found
@@ -153,28 +122,32 @@ def gitArtLink( str4Link ):
 def gitUrls( conn, curs ):                  # newsSrc ):
 
     """
-    load all news source urls to urls[]
+    load all news source urls to theseUrls[]
     10/13/22: was: using allNCGoodUrls.txt as the url source
     change to: use the srcs table from the db
     """
 
-    urls    = []
-    titles  = []
-    theList = []
+    theseUrls = []
+    titles    = []
+    theList   = []
 
     sqlStmt = "SELECT * FROM srcs"
     try:
         theList = curs.execute( sqlStmt ).fetchall()
-    except Error as err:
+    except sqlite3.OperationalError as err:
         misc.alrt()
-        misc.log( "Error getting all data from NBAI.db: " + str(err), errLogFile )
+        misc.log( "OperationalError - Failed to get all data from NBAI.db: " + str(err), errLogFile )
+    except sqlite3.SQLITE_ERROR as err:
+        misc.alrt()
+        print( "SQLITE_ERROR - Failed to get all data from NBAI.db: " + str(err), errLogFile )
+        misc.log( "SQLITE_ERROR - Failed to get all data from NBAI.db: " + str(err), errLogFile )
 
     for ele in theList:
 
-        urls.append( ele[0] )
+        theseUrls.append( ele[0] )
         titles.append( ele[1] )
 
-    return urls, titles
+    return theseUrls, titles
 #-------------------------------------------------------------------------------------------
 
 
@@ -223,13 +196,8 @@ def gitHeads( theNews ):
 
     lst = None
 
-    """
-    with Pool( processes=4 ) as daPool:
-        lst = daPool.map( NC.get_headlines(theNews, 10) )
-    """
-
     try:
-        lst = NC.get_headlines(theNews, 10)   # was 10 / 5
+        lst = NC.get_headlines(theNews, 10)
     except:
         misc.log( "Failed to Get Headlines", errLogFile )
 
@@ -238,76 +206,113 @@ def gitHeads( theNews ):
 
 
 #-------------------------------------------------------------------------------------------
-def prepAndSave( theUrl, conn, curs, lst, arts ):
+def doSave( conn, curs, theUrl, hdl, artLink, artHtml ):
+
+    toInsert  = ""
+    theResult = True    # was dbm.addToDB() successful or not
+
+    # time stamp to help locate past stories, range of stories, etc.
+    tmpNow = str( datetime.datetime.now() )
+    now    = tmpNow[:tmpNow.find(".")]
+
+    # save to the database either the headline & article, or the headline & error message
+    # 08/30/22: artHtml not used - NOT grabbing the article
+    #if ( artHtml != "" ):
+        #toInsert = { "key": now, "url": str(theUrl), "title": "", "headlines": hdl, "artLink": artLink, "articles": artHtml, "topic": "" }
+
+    toInsert      = { "key": now, "url": str(theUrl), "headlines": hdl, "artLink": artLink, "articles": artHtml, "topic": "" }
+    saveResult = dbm.addToDB( toInsert, conn, curs )    # Failed: == None
+
+    if ( saveResult != None ):
+        theResult = True
+    else:
+        theResult = False
+
+    #else:      (*if using real artHtml value*)
+        #toInsert = { "key": now, "title": str(theUrl), "headlines": hdl, "artLink": artLink, "articles": "No articles matching this headline: " + hdl }
+        #dbm.addToDB( toInsert, conn, curs )
+
+    return theResult          # doSave()
+#-------------------------------------------------------------------------------------------
+
+
+#-------------------------------------------------------------------------------------------
+def prepAndSave( theUrl, conn, curs, hdlsList, artsList ):
 
     """
-    find the article that matches each headline in lst[]
+    find the article that matches each headline in hdlsList[]
     for each headline and article save to the database
     """
 
-    artLoc   = ""
-    toInsert = ""
-    artHtml  = ""
+    artUrl   = ""
     artLink  = ""
+    artHtml  = ""
+    cntr     = 0
     
-    for hdl in lst:
+    # For each headline in the list of headlines
+    for hdLine in hdlsList:
 
-        for ele in range( len(arts) ):
+        # For each article in the list of articles
+        for ele in range( len(artsList) ):
 
             # get this article's title - if there is one
-            if ( "title" not in arts[ele] ):
+            if ( "title" not in artsList[ele] ):
                 artLink = ""
                 continue
 
-            thisArt = arts[ele]["title"]
+            thisArtTitle = artsList[ele]["title"]
 
             # if this article's title is the same as this headline
-            if ( thisArt == hdl ):
+            if ( thisArtTitle == hdLine ):
 
                 # find the source of the full article on this website
-                # NOT present in arts[]
+                # NOT present in artsList[]
                 # use either the links key or the content key to get the url for this article on this same site 
-                if ( "links" in arts[ele].keys() ):
-                    artLoc = arts[ele]["links"]
-                elif ( "link" in arts[ele].keys() ):
-                    artLoc = arts[ele]["link"]
+
+                if ( "link" in artsList[ele].keys() ):
+                    artUrl = artsList[ele]["link"]
+                elif ( "links" in artsList[ele].keys() ):
+                    artUrl = artsList[ele]["links"]
                 else:
-                    artLoc = arts[ele]["content"]
+                    artUrl = artsList[ele]["content"]
 
-                # parse the link to the full article from either the article links or content data
-                artLink  = gitArtLink( str(artLoc) )
 
-                # grab this article and store in the artHtml variable
-                #artHtml  = gitArt( artLink )
+                # parse the link to the full article from either the article link(s) or content data
+                #artLink  = gitArtLink( str(artUrl) )
+
+                artLink  = str(artUrl)
+
+                # grab this article and store in the artHtml variable ==> artHtml  = gitArt( artLink )
                 artHtml  = ""     # 08/30/22: place-holder for eventual article grabbing
 
                 # got the article that matches this headline, leave this loop
                 break
+            cntr +=1
 
-        tmpNow = str( datetime.datetime.now() )
-        # time stamp to help locate past stories, range of stories, etc.
-        now    = tmpNow[:tmpNow.find(".")]
+        if ( artLink == None ) or ( artLink == "" ):
+            misc.log( "No article for " + theUrl + " for the " + str(cntr) + " headline", "noArts.txt" )
 
-        # save to the database either the headline & article, or the headline & error message
-        # 08/30/22: artHtml not used - NOT grabbing the article
-        #if ( artHtml != "" ):
-        #toInsert       = { "key": now, "url": str(theUrl), "title": "", "headlines": hdl, "artLink": artLink, "articles": artHtml, "topic": "" }
-        toInsert       = { "key": now, "url": str(theUrl), "headlines": hdl, "artLink": artLink, "articles": artHtml, "topic": "" }
-        dbm.addToDB( toInsert, conn, curs )
+        # for each headline and article save to the database
+        # 12/20/22: don't know if/how to use saveResult, since dbMgr:addToDB() logs all failures
+        # &&& this is just one result of many
+        saveResult = doSave( conn, curs, theUrl, hdLine, artLink, artHtml )
 
-        #else:
-            #toInsert       = { "key": now, "title": str(theUrl), "headlines": hdl, "artLink": artLink, "articles": "No articles matching this headline: " + hdl }
-            #dbm.addToDB( toInsert, conn, curs )
+    return saveResult                 # prepAndSave()
 #-------------------------------------------------------------------------------------------
 
 
 #-------------------------------------------------------------------------------------------
-def doGrab( urls ):
+def doGrab( urls, conn, curs ):
+
+    tmpLogFile = "UrlsRan.txt"
+    grabRslt   = True
 
     for theUrl in urls:
 
-        st.write( theUrl )
-        misc.log( theUrl, "UrlsRan.txt" )
+        #st.write( theUrl )
+        print( theUrl )
+        misc.log( theUrl, tmpLogFile )
+        wasSaved = False
 
         # create a newscatcher object
         theNews = gitNewsObj( theUrl )
@@ -316,13 +321,11 @@ def doGrab( urls ):
             continue
 
         # create a newscatcher results object
-        #with Pool( processes=4 ) as daPool:
-            #results = gitRslts( theNews )
-        try:
-            results = gitRslts( theNews )
-        except Error as err:
-            misc.alrt()
-            misc.log( str(theUrl) + ": No Results: " + str(err), errLogFile )
+        #try:
+        results = gitRslts( theNews )
+        #except Error as err:
+            #misc.alrt()
+            #misc.log( str(theUrl) + ": No Results: " + str(err), errLogFile )
 
         if ( results == None ):
             misc.alrt()
@@ -333,7 +336,7 @@ def doGrab( urls ):
         lstHeadlines = gitHeads( theNews ) 
 
         if ( "articles" in results ):
-            arts     = results["articles"]
+            artsList = results["articles"]
         else:
             misc.log( "No articles for this url: " + theUrl, errLogFile )
             continue
@@ -341,81 +344,56 @@ def doGrab( urls ):
         if ( lstHeadlines != None ):
 
             # find the article that matches each headline in lstHeadlines[]
-            # for each headline and article save to the database
-            prepAndSave( theUrl, conn, curs, lstHeadlines, arts )
+            #hdl, artLink, artHtml = doPrep( theUrl, lstHeadlines, artsList )
+            wasSaved = prepAndSave( theUrl, conn, curs, lstHeadlines, artsList )
+            # wasSaved is for all of the headlines & article links,
+            # so grabRslt is probably useless
+            if wasSaved:
+                grabRslt = True
+            else:
+                grabRslt = False
 
         else:
             misc.alrt()
             misc.log( str(theUrl) + ": No headlines!", errLogFile )
+            grabRslt = False
+
+    return grabRslt                   # doGrab()
 #-------------------------------------------------------------------------------------------
 
 
 #-------------------------------------------------------------------------------------------
 def grabMain():
 
-    #newsSrc = "allNCGoodUrls.txt"
-    start   = time.time()
-    urls    = []
-    titles  = []
+    start    = time.time()
+    allUrls  = []
+    titles   = []
 
     # create a connection object with the database
     conn, curs = dbm.connToDB( theDB )
     if ( conn == None ):
         misc.alrt()
+        misc.log( "Unable to make a database connection", errLogFile )
         quit
 
-    # load all news source urls to urls[]
-    urls, titles = gitUrls( conn, curs )
-    if ( urls == None ) or ( urls == [] ):
+    # load all news source urls to allUrls[]
+    allUrls, titles = gitUrls( conn, curs )
+    if ( allUrls == None ) or ( allUrls == [] ):
         misc.alrt()
         quit
 
-    for theUrl in urls:
-
-        print( theUrl )                # "The url is: " + 
-        misc.log( theUrl, "UrlsRan.txt" )
-
-        # create a newscatcher object
-        theNews = gitNewsObj( theUrl )
-        if ( theNews == None ):
-            misc.alrt()
-            continue
-
-        try:
-            results = gitRslts( theNews )
-        except Error as err:
-            misc.alrt()
-            misc.log( str(theUrl) + ": No Results: " + str(err), errLogFile )
-
-        if ( results == None ):
-            misc.alrt()
-            misc.log( str(theUrl) + ": No Results: ", errLogFile )
-            continue
-
-        # all the headlines using the newscatcher object (theNews) to a list
-        lstHeadlines = gitHeads( theNews ) 
-
-        if ( "articles" in results ):
-            arts     = results["articles"]
-        else:
-            misc.log( "No articles for this url: " + theUrl, errLogFile )
-            continue
-
-        if ( lstHeadlines != None ):
-
-            # find the article that matches each headline in lstHeadlines[]
-            # for each headline and article save to the database
-            prepAndSave( theUrl, conn, curs, lstHeadlines, arts )
-
-        else:
-            misc.alrt()
-            misc.log( str(theUrl) + ": No headlines!", errLogFile )
+    finalResult = doGrab( allUrls, conn, curs )
+    if ( finalResult ):
+        rslt = "was Successful"
+    else:
+        rslt = "Failed"
+    print( "The grab " + rslt )
+    print( lines2 )
 
     conn.close()
     dt = time.time() - start
     timeTaken = dt / 3600
     print( "Time elapsed = " + str(timeTaken) + " hours" )
-    print( "\n\n", result )
 #-------------------------------------------------------------------------------------------
 
 

@@ -23,7 +23,7 @@ getTopics( lang )
 
 #-------------------------------------------------------------------------------------------
 # imports
-import streamlit as st
+#import streamlit as st
 import dbMgr as dbm                   # for database access & storage
 import sqlite3
 import sys
@@ -34,7 +34,8 @@ import time
 theDB      = "NBAI.db"
 errLogFile = "Errors.txt"
 beep       = chr(7)
-nu2Lines = "\n\n"
+nuLine     = "\n"
+lines2     = "\n\n"
 #-------------------------------------------------------------------------------------------
 
 
@@ -60,35 +61,42 @@ def log( txt, outPutFileName=None ):
     if ( outPutFileName == None ):
         outPutFileName = "logFile.txt"
     
-    with open( outPutFileName, "a" ) as lF:
-        
-        if ( "list" in str( type( txt ) ) ):
-           rng  = range(0,len( txt ))
-           for i in rng:
-               toWrite = str( txt[i] )
-               #lF.write( toWrite.encode("ascii", "ignore").decode("utf-8") )
-               lF.write( toWrite )
-               lF.write( "\n" )
-
-        elif ( "dict" in str( type( txt ) ) ):
-           for key in txt:
-               lF.write( key + ": " + str( txt[key] ) )
-               lF.write( "\n" )
-
-        elif ( "str" in str( type( txt ) ) ):
-            #txt = txt.decode("utf-8").encode("ascii", "ignore").decode("utf-8")
+    if ( "bytes" in str( type( txt ) ) ):
+        #txt = txt.decode("utf-8").encode("ascii", "ignore").decode("utf-8")
+        #txt = txt.decode("utf-8")          # turns it to a string
+        with open( outPutFileName, "ab" ) as lF:
             lF.write( txt )
-            lF.write( "\n" )
 
-        elif ( "bool" in str( type( txt ) ) ):
-            if ( txt ):
-                lF.write( "True" )
-            else:
-                lF.write( "False" )
+    else:
+        with open( outPutFileName, "a" ) as lF:
+        
+            if ( "list" in str( type( txt ) ) ):
+                rng  = range(0,len( txt ))
+                for i in rng:
+                    toWrite = str( txt[i] )
+                    #lF.write( toWrite.encode("ascii", "ignore").decode("utf-8") )
+                    lF.write( toWrite )
+                    lF.write( nuLine )
 
-        elif ( "int" in str( type( txt ) ) ) or ( "float" in str( type( txt ) ) ):
-            lF.write( str( txt ) )
-            lF.write( "\n" )
+            elif ( "dict" in str( type( txt ) ) ):
+                for key in txt:
+                    lF.write( key + ": " + str( txt[key] ) )
+                    lF.write( nuLine )
+
+            elif ( "str" in str( type( txt ) ) ):
+                #txt = txt.decode("utf-8").encode("ascii", "ignore").decode("utf-8")
+                lF.write( txt )
+                lF.write( nuLine )
+
+            elif ( "bool" in str( type( txt ) ) ):
+                if ( txt ):
+                    lF.write( "True" )
+                else:
+                    lF.write( "False" )
+
+            elif ( "int" in str( type( txt ) ) ) or ( "float" in str( type( txt ) ) ):
+                lF.write( str( txt ) )
+                lF.write( nuLine )
 
     lF.close
     return                        # log()
@@ -107,7 +115,7 @@ def tup2str( tup ):
 # Convert a tuple into a string using str.join() method
 
     str = "".join(tup)
-    return str           # + "\n"
+    return str
 #-------------------------------------------------------------------------------------------
 
 
@@ -122,7 +130,7 @@ def tpls2str( theList ):
     for itm in theList:
 
         tmpStr = tup2str( itm )
-        theStr = theStr + tmpStr + "\n"
+        theStr = theStr + tmpStr + nuLine
 
     lstStr     = theStr.split("\n")
 
@@ -194,7 +202,7 @@ def doTrans( toTrans, lang, dType=None ):
 
         for ele in theList:
 
-            if ( ele != None ):                 #print( ele, "\n" )
+            if ( ele != None ):                 #print( ele, nuLine )
 
                 if ( "www" not in ele ) and ( "http" not in ele ) and ( len(ele.strip() ) != 0 ) and ( ele != "\n" ):
 
@@ -206,7 +214,7 @@ def doTrans( toTrans, lang, dType=None ):
     if   ( dType == "str" ):
         return transText
     elif ( dType == "list" ):
-        #print( nu2Lines, "transList == ", nu2Lines, transList, nu2Lines )
+        #print( lines2, "transList == ", lines2, transList, lines2 )
         return transList
 #-------------------------------------------------------------------------------------------
 
