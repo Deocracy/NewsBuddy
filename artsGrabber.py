@@ -17,7 +17,6 @@ import time
 import sqlite3
 from urllib.parse import urlsplit, urlunsplit, quote
 import socket
-import time
 
 errLogFile = "artsGrabberErrors.txt"
 beep       = chr(7)
@@ -136,7 +135,7 @@ def iri2uri( iri ):
 
 
 #-------------------------------------------------------------------------------------------
-class grabMain():
+def grabMain():
 
     theDB    = "NBAI.db"
     urls     = []
