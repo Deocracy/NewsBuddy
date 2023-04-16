@@ -31,7 +31,7 @@ _If you've made a contribution and your name is missing, please let us know._
 
 ## Special Thanks
 
-- Isabella Yellow ([@isabellayellow](https://github.com/isabellayellow)) for organizing community events
-- Jack Purple ([@jackpurple](https://github.com/jackpurple)) for providing valuable feedback and suggestions
+- 
+- 
 
 _Example: The list above includes the names of volunteers, their GitHub profiles, and their areas of contribution._
