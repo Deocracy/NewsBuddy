@@ -11,12 +11,12 @@ _If you've made a contribution and your name is missing, please let us know._
 
 ## UX/UI Design
 
-- 
-- 
+- [Chrystal Gonzales](chrystal.design23@gmail.com)
+- [Baruch Bashan](gaiagrower77@gmail.com)
 
 ## Software Development
 
-- 
+- [Baruch Bashan](gaiagrower77@gmail.com)
 - 
 
 ## Documentation and Technical Writing
