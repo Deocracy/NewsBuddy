@@ -30,7 +30,7 @@ We communicate primarily through Slack and at least 1 meeting a week.
 ## Acknowledgments
 
 **Democracy stands on the shoulders of giants**
-It has always been through a few taking intuitive to go beyond what is required of the -a good person- for democracy to be propelled forward
+he progression of democracy has always required people, who through their own initiative, go beyond the requirements of a good person.
 
 - To see a list of the project’s contributors, please visit the [contributors page](./CONTRIBUTORS.md)
 
