@@ -37,4 +37,4 @@ _If you've made a contribution and your name is missing, please let us know._
 ## Special Thanks
 
 - [Keith Rothwell](keith@deocracy.org)
-- [Stas Darevskiy]
+- Stas Darevskiy
